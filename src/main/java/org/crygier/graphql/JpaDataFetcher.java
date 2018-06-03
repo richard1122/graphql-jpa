@@ -30,11 +30,47 @@ public class JpaDataFetcher implements DataFetcher {
         return getQuery(environment, environment.getFields().iterator().next()).getResultList();
     }
 
+    private List<Selection<?>> processQuery(CriteriaQuery<Tuple> query, Field field, Path path, Root root, String name, boolean inEmbedded) {
+        ArrayList<Selection<?>> selections = new ArrayList<>();
+        field.getSelectionSet().getSelections().forEach(selection -> {
+            if (selection instanceof Field) {
+                Field selectedField = (Field) selection;
+                if ("__typename".equals(selectedField.getName())) return;
+
+                String pathName = name == null ? selectedField.getName() : name + "." + selectedField.getName();
+                Path fieldPath = path.get(selectedField.getName());
+                // Check if it's an object and the foreign side is One.  Then we can eagerly fetch causing an inner join instead of 2 queries
+                if (fieldPath.getModel() instanceof SingularAttribute) {
+                    SingularAttribute attribute = (SingularAttribute) fieldPath.getModel();
+
+                    if (attribute.getPersistentAttributeType() == Attribute.PersistentAttributeType.MANY_TO_ONE
+                            || attribute.getPersistentAttributeType() == Attribute.PersistentAttributeType.ONE_TO_ONE) {
+
+                        if (attribute.isOptional() && !inEmbedded) {
+                            // TODO: Embedded association and join may not working.
+                            Join join = root.join(attribute, attribute.isOptional() ? JoinType.LEFT : JoinType.INNER);
+                            selections.addAll(processQuery(query, selectedField, join, root, pathName, inEmbedded));
+                        } else {
+                            selections.addAll(processQuery(query, selectedField, fieldPath, root, pathName, inEmbedded));
+                        }
+                    } else if (attribute.getPersistentAttributeType() == Attribute.PersistentAttributeType.EMBEDDED) {
+                        selections.addAll(processQuery(query, selectedField, fieldPath, root, pathName, true));
+                    } else {
+                        selections.add(fieldPath.alias(pathName));
+                    }
+                    return;
+                }
+//                CollectionJoin join = root.joinCollection(selectedField.getName(), JoinType.LEFT);
+//                selections.addAll(processQuery(query, selectedField, join, root, pathName));
+            }
+        });
+        return selections;
+    }
+
     protected TypedQuery getQuery(DataFetchingEnvironment environment, Field field) {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = cb.createTupleQuery();
         Root root = query.from(entityType);
-        ArrayList<Selection<?>> selections = new ArrayList<>();
 
         List<Argument> arguments = new ArrayList<>();
 
@@ -62,21 +98,14 @@ public class JpaDataFetcher implements DataFetcher {
                             .filter(it -> !"orderBy".equals(it.getName()))
                             .map(it -> new Argument(selectedField.getName() + "." + it.getName(), it.getValue()))
                             .collect(Collectors.toList()));
-
-                    // Check if it's an object and the foreign side is One.  Then we can eagerly fetch causing an inner join instead of 2 queries
-                    if (fieldPath.getModel() instanceof SingularAttribute) {
-                        selections.add(fieldPath.alias(selectedField.getName()));
-                        SingularAttribute attribute = (SingularAttribute) fieldPath.getModel();
-                        if (!attribute.isOptional() && (attribute.getPersistentAttributeType() == Attribute.PersistentAttributeType.MANY_TO_ONE || attribute.getPersistentAttributeType() == Attribute.PersistentAttributeType.ONE_TO_ONE))
-                            root.fetch(selectedField.getName());
-                    }
                 }
             }
         });
 
+        List<Selection<?>> selections = processQuery(query, field, root, root, null, false);
+
         arguments.addAll(field.getArguments());
         query.multiselect(selections);
-
 
         query.where(arguments.stream().map(it -> getPredicate(cb, root, environment, it)).toArray(Predicate[]::new));
 
