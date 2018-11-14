@@ -16,18 +16,18 @@ class EmbeddedQueryExecutorTest extends Specification {
 
 	@Autowired
     private GraphQLExecutor executor;
-	
+
 	def 'Query Embedded Values'() {
 		given:
 		def query = '''
         {
             Spaceship (id: "1000"){
-                name, created { user {id}}, modified {date}
+                name, created { user {id,firstName}}, modified {date}
             }
         }
         '''
 		def expected = [
-				Spaceship: [[name: "X-Wing", created:[user:[id:"1000"]], modified:null]]
+				Spaceship: [[name: "X-Wing", created:[user:[id:"1000", firstName: "Bob"]], modified:null]]
 		]
 
 		when:

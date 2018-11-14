@@ -375,7 +375,7 @@ class StarwarsQueryExecutorTest extends Specification {
         def query = '''
         {
           Human {
-            name
+            name(orderBy: ASC)
             gender(code: "Male") {
               description
             }
@@ -384,9 +384,9 @@ class StarwarsQueryExecutorTest extends Specification {
         '''
         def expected = [
                 Human: [
-                        [ name: 'Darth Vader', gender: [ description: "Male" ] ],                       
-                        [ name: 'Luke Skywalker', gender: [ description: "Male" ]],
+                        [ name: 'Darth Vader', gender: [ description: "Male" ] ],
                         [ name: 'Han Solo', gender: [ description: "Male" ] ],
+                        [ name: 'Luke Skywalker', gender: [ description: "Male" ]],
 						[ name: 'Wilhuff Tarkin', gender: [ description: "Male" ]]
                 ]
         ]
