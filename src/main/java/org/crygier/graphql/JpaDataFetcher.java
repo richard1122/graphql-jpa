@@ -60,8 +60,8 @@ public class JpaDataFetcher implements DataFetcher {
                     }
                     return;
                 }
-//                CollectionJoin join = root.joinCollection(selectedField.getName(), JoinType.LEFT);
-//                selections.addAll(processQuery(query, selectedField, join, root, pathName));
+//                SetJoin join = root.joinSet(selectedField.getName(), JoinType.LEFT);
+//                selections.addAll(processQuery(query, selectedField, join, root, pathName, inEmbedded));
             }
         });
         return selections;
@@ -111,6 +111,19 @@ public class JpaDataFetcher implements DataFetcher {
 
         return entityManager.createQuery(query.distinct(true));
     }
+
+    private class DataFetchContext {
+        private DataFetchingEnvironment environment;
+
+        public DataFetchContext(DataFetchingEnvironment environment) {
+            this.environment = environment;
+        }
+    }
+
+    public static class DataFetchResult {
+
+    }
+
 
     private Predicate getPredicate(CriteriaBuilder cb, Root root, DataFetchingEnvironment environment, Argument argument) {
         Path path = null;
